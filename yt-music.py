@@ -11,7 +11,7 @@ from pprint import pprint
 import subprocess, argparse
 from mutagen._file import File, FileType as AudioFile
 
-__version__ = 0.2
+__version__ = 0.3
 attributes = ( 
             'album', 
             'albumartist', 
@@ -22,8 +22,9 @@ attributes = (
             'encodedby', 
             'genre', 
             'title', 
-            'tracknumber', 
+            'tracknumber'
 )
+
 # TODO: redo all of this shit...
 
 def get_args() -> argparse.Namespace:
@@ -49,6 +50,8 @@ def get_args() -> argparse.Namespace:
 
 def parse_tag(tag:str, args:argparse.Namespace, file:AudioFile) -> list[str]|None:
     if (a_tag := vars(args).get(tag)) is not None:
+        if type(a_tag) != list:
+            return [a_tag]
         return a_tag
     
     if (f_tag := file.get(tag)) is not None:
@@ -60,31 +63,21 @@ def parse_tag(tag:str, args:argparse.Namespace, file:AudioFile) -> list[str]|Non
                 pass
         return f_tag
 
-    return []
+    return None
     
-
-
-
-def save_meta(args:argparse.Namespace, file:AudioFile) -> dict: 
-    return {}
+def save_meta(args:argparse.Namespace, file:AudioFile) -> bool: 
+    # go through tags -> delete empty for future debugging
+    d = { tag : parse_tag(tag, args, file) for tag in attributes }
+    d = { k:v for k,v in d.items() if v is not None}
+    
+    file.update(d)
+    try:
+        file.save()
+        return True
+    except:
+        return False
+    
 
 if __name__ == "__main__":
     args =  get_args()
-
-    for f in iglob("./samples/*"):
-        file:AudioFile = File(f, easy=True)    # type:ignore
-
-        print(f)
-        print("-"*len(f))
-        for i in attributes:
-            print(i + '\t\t' + str(parse_tag(i, args, file)))
-        
-        # a_keys = set(vars(args).keys())
-        # f_keys = set(file.keys())
-        #
-        # # pprint(save_meta(args, File(f, easy=True)))
-        # pprint(a_keys.intersection(f_keys))
-        print()
-        
-
 
