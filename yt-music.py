@@ -10,8 +10,10 @@ from glob import iglob
 from pprint import pprint
 import subprocess, argparse
 from mutagen._file import File, FileType as AudioFile
+from mutagen._util import MutagenError
+import os
 
-__version__ = 0.3
+__version__ = 0.4
 attributes = ( 
             'album', 
             'albumartist', 
@@ -25,15 +27,16 @@ attributes = (
             'tracknumber'
 )
 
-# TODO: redo all of this shit...
-
 def get_args() -> argparse.Namespace:
     # NOTE: don't get any funny ideas to map through a list to get these
     # NOTE: date excluded on purpose
     parser = argparse.ArgumentParser(prog='yt-music',
         description="Downloads YouTube videos as music with overwritable metadata.")
-    parser.add_argument('links', nargs="+",
+    parser.add_argument('links', nargs="*",default="", type=str,
                         help='Space-separated links to download')
+    parser.add_argument('-v', '--version', action='version',
+                        version=f"%(prog)s {__version__}")
+    parser.add_argument('-p', '--path', default="temp") 
     parser.add_argument('-a', '--artist', action='append', metavar='ARTIST(S)')
     parser.add_argument('-A', '--album')
     parser.add_argument('--albumartist') # --Aa misbehaved in help
@@ -44,8 +47,6 @@ def get_args() -> argparse.Namespace:
     parser.add_argument('-g', '--genre',)
     parser.add_argument('-t', '--title')
     parser.add_argument('-T', '--tracknumber')
-    parser.add_argument('-v', '--version', action='version',
-                    version=f"%(prog)s {__version__}")
     return parser.parse_args()
 
 def parse_tag(tag:str, args:argparse.Namespace, file:AudioFile) -> list[str]|None:
@@ -65,19 +66,46 @@ def parse_tag(tag:str, args:argparse.Namespace, file:AudioFile) -> list[str]|Non
 
     return None
     
-def save_meta(args:argparse.Namespace, file:AudioFile) -> bool: 
-    # go through tags -> delete empty for future debugging
-    d = { tag : parse_tag(tag, args, file) for tag in attributes }
-    d = { k:v for k,v in d.items() if v is not None}
-    
+def save_meta(args:argparse.Namespace, file:AudioFile): 
+    # parse tags and strip of empty values
+    d = { tag : parsed
+        for tag in attributes
+        if (parsed := parse_tag(tag, args, file)) is not None
+    }
+
     file.update(d)
+    
     try:
         file.save()
-        return True
-    except:
-        return False
+    except MutagenError:
+        raise ValueError("File couldn't be saved")
+    
+def download_urls(args:argparse.Namespace) -> list[str]:
+    if 0 != subprocess.call((
+            'yt-dlp',
+            '-x', '-q', '--progress',
+            '--embed-metadata',
+            '--embed-thumbnail',
+            '-o', f'{args.path}/%(title)s.%(ext)s',
+            " ".join(args.links)),
+        # stdout=subprocess.DEVNULL,
+        # stderr=subprocess.STDOUT
+    ):
+        pass
     
 
 if __name__ == "__main__":
     args =  get_args()
+    # print(*download_urls(args),sep='\n')
+
+    path:str = p if (p:=args.path) else '.'
+    print(*os.walk(path))
+
+
+
+
+
+
+
+
 
